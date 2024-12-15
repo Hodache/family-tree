@@ -1,0 +1,147 @@
+﻿@page "/tree"  
+@attribute [StreamRendering]  
+@rendermode InteractiveServer  
+@inject IFamilyTreeService FamilyTreeService  
+
+<MudThemeProvider />  
+<MudPopoverProvider />  
+<MudDialogProvider />  
+<MudSnackbarProvider />  
+
+<PageTitle>Дерево</PageTitle>
+
+<MudTreeView @ref="MudTreeViewRef" T="string" ReadOnly="true">
+    @if (treeNodes != null)
+    {
+        @foreach (var rootNode in treeNodes)
+        {
+            @BuildTreeViewItem(rootNode)
+        }
+    }
+</MudTreeView>
+
+<MudButton Style="margin-top: 20px;" Variant="Variant.Filled" Color="Color.Secondary" OnClick="ClearRelations">
+    Очистить дерево (удалить все связи)
+</MudButton>
+
+@code {
+    private MudTreeView<string> MudTreeViewRef;
+
+    private static IEnumerable<PersonResponseDTO> allPersons = new List<PersonResponseDTO>();
+    private static IEnumerable<RelationResponseDTO> allRelations = new List<RelationResponseDTO>();  
+    private static List<TreeNode> treeNodes = new List<TreeNode>();
+
+    protected override async Task OnInitializedAsync()  
+    {
+        allPersons = await FamilyTreeService.GetPersonsAsync();  
+        allRelations = await FamilyTreeService.GetRelationsAsync();  
+
+        treeNodes = ProcessTree();
+    }
+
+    protected override async void OnAfterRender(bool firstRender)
+    {
+        base.OnAfterRender(firstRender);
+
+        await MudTreeViewRef.ExpandAllAsync();
+    }
+
+    private List<TreeNode> ProcessTree()  
+    {
+        var result = new List<TreeNode>();
+
+        HashSet<int> processedIds = new();
+
+        foreach (var person in allPersons)  
+        {  
+            var spouseId = allRelations.FirstOrDefault(r => r.FromPersonId == person.Id && r.Type == 0)?.ToPersonId;
+            if (allRelations.Any(r => r.FromPersonId == person.Id && r.Type == 2) || allRelations.Any(r => r.FromPersonId == spouseId && r.Type == 2))
+            {
+                continue;
+            }
+
+            if (processedIds.Contains(person.Id) || (spouseId != null && processedIds.Contains((int)spouseId)))
+            {
+                continue;
+            }
+
+            var newNode = new TreeNode
+                {
+                    Ids = new Tuple<int, int?>(person.Id, spouseId),
+                    Children = new List<TreeNode>()
+                };
+
+            result.Add(newNode);
+
+            processedIds.Add(person.Id);
+            if (spouseId != null)
+            {
+                processedIds.Add(spouseId.Value);
+            }
+        }  
+
+        foreach (var node in result)  
+        {  
+            ProcessChildren(node);
+        }  
+
+        return result;  
+    }  
+
+    private void ProcessChildren(TreeNode node)  
+    {  
+        var children = allRelations.Where(r => r.FromPersonId == node.Ids.Item1 && r.Type == 1).Select(r => r.ToPersonId);  
+        foreach (var child in children)  
+        {  
+            var spouseId = allRelations.FirstOrDefault(r => r.FromPersonId == child && r.Type == 0)?.ToPersonId;  
+
+            var childNode = new TreeNode
+                {
+                    Ids = new Tuple<int, int?>(child, spouseId),
+                    Children = new List<TreeNode>()
+                };
+
+            node.Children.Add(childNode);
+
+            ProcessChildren(childNode);
+        }  
+    }  
+
+    private RenderFragment BuildTreeViewItem(TreeNode node) => __builder =>
+    {
+        <MudTreeViewItem T="string" Text="@node.Text">
+            @if (node.Children != null && node.Children.Any())
+            {
+                foreach (var child in node.Children)
+                {
+                    @BuildTreeViewItem(child);
+                }
+            }
+        </MudTreeViewItem>;
+    };
+
+    private async void ClearRelations()
+	{
+		allRelations = new List<RelationResponseDTO>();
+        await FamilyTreeService.ClearTreeAsync();
+	}
+
+    protected class TreeNode  
+    {  
+        public Tuple<int, int?> Ids { get; set; }  
+        public string Text { 
+            get {
+                var haveChildren = allRelations.Any(r => r.FromPersonId == Ids.Item1 && r.Type == 1);
+                var firstPart = Ids.Item1.ToString() + "_" + allPersons.First(p => p.Id == Ids.Item1).Name;
+                string secondPart = "";
+                if (Ids.Item2.HasValue)
+                {
+                    secondPart = " + " + Ids.Item2 + "_" + allPersons.First(p => p.Id == Ids.Item2.Value).Name;
+                }
+
+                return firstPart + secondPart;
+            }
+        }
+        public List<TreeNode> Children { get; set; }  
+   }  
+}

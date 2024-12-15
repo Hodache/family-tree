@@ -6,4 +6,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="MudBlazor" Version="7.15.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FamilyTree.BLL\FamilyTree.BLL.csproj" />
+    <ProjectReference Include="..\FamilyTree.DAL\FamilyTree.DAL.csproj" />
+  </ItemGroup>
+
 </Project>

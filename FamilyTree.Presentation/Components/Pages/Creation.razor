@@ -1,0 +1,127 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@inject IJSRuntime JSRuntime
+@inject IFamilyTreeService FamilyTreeService
+
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<PageTitle>Новые люди и связи</PageTitle>
+
+<h3>Добавление человека</h3>
+
+<MudPaper Class="p-4">
+    <MudText Typo="Typo.h6">Создание нового человека</MudText>
+
+    <MudForm @ref="form" Valid="isValid">
+        <MudTextField Label="Имя" @bind-Value="newPerson.Name" Required="true" />
+
+        <MudDatePicker Label="Дата рождения" @bind-Date="newPerson.BirthDate" Required="true" />
+
+        <MudSelect Label="Пол" @bind-Value="newPerson.Gender" Required="true">
+            <MudSelectItem Value="0">Мужчина</MudSelectItem>
+            <MudSelectItem Value="1">Женщина</MudSelectItem>
+        </MudSelect>
+
+        <MudButton Style="margin-top: 20px;" Variant="Variant.Filled" Color="Color.Primary" OnClick="CreatePerson" Disabled="!isValid">
+            Создать
+        </MudButton>
+    </MudForm>
+</MudPaper>
+
+<MudPaper Class="p-4">
+    <MudText Typo="Typo.h6">Создание новой связи</MudText>
+
+    <MudForm @ref="relationForm" Valid="isRelationFormValid">
+        <MudSelect T="int" Label="Человек от которого идет связь" @bind-Value="newRelation.FromPersonId" Required="true">
+            @foreach (var person in allPersons)
+            {
+                <MudSelectItem T="int" Value="person.Id">
+                    @(person.Id + "_" + person.Name)
+                </MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudSelect T="int" Label="Человек к которому идет связь" @bind-Value="newRelation.ToPersonId" Required="true">
+            @foreach (var person in allPersons)
+            {
+                <MudSelectItem T="int" Value="person.Id">
+                    @(person.Id + "_" + person.Name)
+                </MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudSelect Label="Тип связи" @bind-Value="newRelation.Type" Required="true">
+            <MudSelectItem Value="0">Супруг</MudSelectItem>
+            <MudSelectItem Value="1">Родитель</MudSelectItem>
+        </MudSelect>
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateRelation" Disabled="!isRelationFormValid">
+            Создать связь
+        </MudButton>
+    </MudForm>
+</MudPaper>
+
+@code {
+    private static IEnumerable<PersonResponseDTO> allPersons = new List<PersonResponseDTO>();
+
+    private bool isValid => form.IsValid;
+    private bool isRelationFormValid => relationForm.IsValid;
+
+    private MudForm form;
+    private MudForm relationForm;
+
+    private PersonCreationDTO newPerson = new();
+    private RelationCreationDTO newRelation = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        allPersons = await FamilyTreeService.GetPersonsAsync();
+    }
+
+    private async Task CreatePerson()
+    {
+        if (form.IsValid)
+        {
+            try
+            {
+                await FamilyTreeService.CreatePersonAsync(newPerson);
+
+                newPerson = new();
+                await form.ResetAsync();
+            }
+            catch (ArgumentException e)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", e.Message);
+            }
+            catch (Exception e)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", e.Message);
+            }
+        }
+    }
+
+    private async Task CreateRelation()
+    {
+        if (relationForm.IsValid)
+        {
+            try
+            {
+                await FamilyTreeService.AddRelationAsync(newRelation);
+
+                newRelation = new RelationCreationDTO();
+                await relationForm.ResetAsync();
+            }
+            catch (ArgumentException e)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", e.Message);
+            }
+            catch (Exception e)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", e.Message);
+            }
+        }
+    }
+}
